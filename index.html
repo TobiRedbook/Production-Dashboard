@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Line Production Inventory Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <h2>📊 Multi-Line Production Monitoring System</h2>
+
+        <div id="page-setup" class="page active">
+            <div class="global-settings-bar">
+                <div>
+                    ⏱️ <b>เวลาลูปกลาง:</b> <span id="setup-time-preview" style="color:#e74c3c; font-weight:bold;">04:00</span>
+                </div>
+                <button id="btn-open-settings" class="btn-settings-toggle">⚙️ ตั้งเวลา & เกณฑ์เตือนสี</button>
+            </div>
+
+            <div class="setup-grid">
+                <div class="setup-card">
+                    <h4>⚙️ Line 1</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l1-new" value="10" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l1-stock" value="12" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l1-active" value="6" min="0"></div>
+                    </div>
+                </div>
+                <div class="setup-card">
+                    <h4>⚙️ Line 2</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l2-new" value="8" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l2-stock" value="15" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l2-active" value="5" min="0"></div>
+                </div>
+                </div>
+                <div class="setup-card">
+                    <h4>⚙️ Line 3</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l3-new" value="15" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l3-stock" value="10" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l3-active" value="7" min="0"></div>
+                    </div>
+                </div>
+            </div>
+            <button id="btn-submit-all" class="btn btn-submit">บันทึกข้อมูลและเปิดหน้า Dashboard หลัก ➡️</button>
+        </div>
+
+        <div id="page-dashboard" class="page">
+            <div class="master-controls">
+                <button id="btn-master-start" class="btn btn-start-all">▶️ เริ่มทำงานทุกไลน์</button>
+                <button id="btn-master-stop" class="btn btn-stop-all" disabled>⏸️ หยุดทุกไลน์</button>
+                <button id="btn-master-reset" class="btn btn-reset-all">🔄 Reset & ตั้งค่าใหม่</button>
+            </div>
+
+            <div class="lines-layout">
+                <div id="card-l1" class="line-column">
+                    <div class="line-header"><h3>Line 1</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l1" class="btn btn-line-toggle run" disabled>หยุดไลน์ 1</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label>เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l1-val" value="5" min="1">
+                            <button onclick="liveAddJob(1)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l1" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l1-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l1-new">0</span></span></div>
+                            <div id="bar-l1-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l1-stock">0</span></span></div>
+                            <div id="bar-l1-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l1-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="card-l2" class="line-column">
+                    <div class="line-header"><h3>Line 2</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l2" class="btn btn-line-toggle run" disabled>หยุดไลน์ 2</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label>เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l2-val" value="5" min="1">
+                            <button onclick="liveAddJob(2)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l2" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l2-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l2-new">0</span></span></div>
+                            <div id="bar-l2-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l2-stock">0</span></span></div>
+                            <div id="bar-l2-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l2-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="card-l3" class="line-column">
+                    <div class="line-header"><h3>Line 3</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l3" class="btn btn-line-toggle run" disabled>หยุดไลน์ 3</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label>เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l3-val" value="5" min="1">
+                            <button onclick="liveAddJob(3)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l3" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l3-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l3-new">0</span></span></div>
+                            <div id="bar-l3-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l3-stock">0</span></span></div>
+                            <div id="bar-l3-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l3-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h4>⚙️ ตั้งค่าระบบส่วนกลาง</h4>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">⏱️ เวลาลูปจ่ายชิ้นงาน:</label>
+                <input type="number" id="modal-min" value="4" style="width:50px; text-align:center;"> นาที 
+                <input type="number" id="modal-sec" value="0" style="width:50px; text-align:center;"> วินาที
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px; color:#d6a300;">⚠️ เกณฑ์เตือนภัย (สีเหลือง):</label>
+                ต่ำกว่า <input type="number" id="modal-warn" value="5" style="width:65px; text-align:center;"> ชิ้น
+            </div>
+            <div>
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px; color:var(--danger-red);">🚨 เกณฑ์วิกฤต (สีแดง):</label>
+                ต่ำกว่าหรือเท่ากับ <input type="number" id="modal-danger" value="3" style="width:65px; text-align:center;"> ชิ้น
+            </div>
+            <div class="modal-buttons">
+                <button id="btn-modal-save" class="btn" style="background-color:var(--blue); flex:1;">บันทึก</button>
+                <button id="btn-modal-close" class="btn" style="background-color:#e74c3c; flex:1;">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

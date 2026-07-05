@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3-Line Production Inventory Dashboard</title>
+    <style>
+        :root {
+            --blue: #3498db;
+            --light-green: #2ecc71;
+            --dark-green: #27ae60;
+            --warning-yellow: #f1c40f;
+            --danger-red: #e74c3c;
+            --bg-dark: #2c3e50;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 95vh;
+        }
+        .dashboard-container {
+            background: white;
+            padding: 25px;
+            border-radius: 14px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 900px;
+        }
+        h2 { text-align: center; color: var(--bg-dark); margin: 0 0 20px 0; font-size: 24px; }
+        
+        .page { display: none; }
+        .page.active { display: block; }
+
+        /* --- หน้าตั้งค่าเริ่มต้น (Setup Page) --- */
+        .setup-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .setup-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .setup-card h4 { margin: 0 0 12px 0; text-align: center; color: var(--bg-dark); border-bottom: 2px solid #e2e8f0; padding-bottom: 5px; }
+        .setup-input-group { display: flex; flex-direction: column; gap: 10px; }
+        .setup-input-group .row { display: flex; justify-content: space-between; align-items: center; }
+        .setup-input-group label { font-size: 13px; font-weight: bold; }
+        .setup-input-group input { width: 70px; padding: 6px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; font-size: 14px; }
+        
+        .global-settings-bar {
+            background: #edf2f7;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* --- หน้าจอหลัก Dashboard (3 ไลน์) --- */
+        .master-controls {
+            display: flex;
+            gap: 10px;
+            background: #2c3e50;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .btn { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; color: white; transition: background 0.2s; font-size: 14px; text-align: center; }
+        .btn-start-all { background-color: #27ae60; }
+        .btn-stop-all { background-color: #e74c3c; }
+        .btn-reset-all { background-color: #7f8c8d; }
+        .btn-submit { background-color: var(--blue); width: 100%; font-size: 16px; padding: 12px; }
+        .btn:disabled { background-color: #cbd5e0; color: #718096; cursor: not-allowed; }
+
+        /* การจัดวาง 3 คอลัมน์ของไลน์ผลิต */
+        .lines-layout {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+        }
+        .line-column {
+            background: #fff;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        .line-column.paused { background-color: #f7fafc; border-color: #cbd5e0; opacity: 0.85; }
+        .line-header { text-align: center; margin-bottom: 10px; }
+        .line-header h3 { margin: 0 0 5px 0; color: var(--bg-dark); font-size: 18px; }
+        
+        /* ปุ่มควบคุมประจำไลน์ */
+        .line-btn-panel { display: flex; gap: 5px; margin-bottom: 10px; }
+        .btn-line-toggle { flex: 1; padding: 6px; font-size: 12px; border-radius: 4px; background-color: #888; }
+        .btn-line-toggle.run { background-color: #e67e22; } /* สีส้มสำหรับกดหยุดเดี่ยว */
+        .btn-line-toggle.pause { background-color: #2ecc71; } /* สีเขียวสำหรับกดเดินต่อเดี่ยว */
+
+        /* ช่องเติมงานด่วนในหน้าแดชบอร์ด */
+        .line-live-add {
+            background: #edf2f7;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 5px;
+        }
+        .line-live-add input { width: 50px; padding: 5px; border: 1px solid #cbd5e0; border-radius: 4px; text-align: center; font-size: 14px; }
+        .btn-add-inline { background-color: var(--blue); padding: 5px 8px; font-size: 11px; }
+
+        .line-timer-box {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .line-countdown {
+            font-size: 16px;
+            font-weight: bold;
+            color: #e74c3c;
+            background: #fde8e8;
+            padding: 5px 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        .line-column.paused .line-countdown {
+            color: #718096;
+            background: #edf2f7;
+        }
+
+        /* ส่วนกราฟแท่งของแต่ละไลน์ */
+        .chart-wrapper {
+            height: 280px;
+            border-left: 2px solid #4a5568;
+            border-bottom: 2px solid #4a5568;
+            position: relative;
+            padding-left: 20px;
+            display: flex;
+            align-items: flex-end;
+            margin-top: 5px;
+        }
+        .main-bar {
+            width: 85px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+            margin: 0 auto;
+            background: #f7fafc;
+            border-radius: 6px 6px 0 0;
+            overflow: hidden;
+        }
+        .bar-segment {
+            width: 100%;
+            transition: height 0.4s ease-in-out, background-color 0.4s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .bar-label {
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            text-shadow: 1px 1px 1px rgba(0,0,0,0.8);
+            text-align: center;
+            line-height: 1.2;
+            padding: 2px;
+        }
+        
+        .bar-blue { background-color: var(--blue); }
+        .bar-light-green { background-color: var(--light-green); }
+        
+        /* สเตตัสสีของบล็อกล่างสุด */
+        .status-normal { background-color: var(--dark-green); }
+        .status-warning { background-color: var(--warning-yellow); }
+        .status-danger { background-color: var(--danger-red); }
+        
+        /* แอนิเมชันตอนทำงานกับตอนกระโดดสลับแถว */
+        .blink-active { animation: blink-anim 1s infinite alternate; }
+        @keyframes blink-anim { 0% { opacity: 1; } 100% { opacity: 0.7; filter: brightness(1.1); } }
+        
+        .puzzle-disappear { animation: vanish 0.4s ease-out forwards; }
+        @keyframes vanish { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(0); opacity: 0; height: 0 !important; } }
+        
+        .puzzle-fall { animation: fall-down 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
+        @keyframes fall-down { 0% { transform: translateY(-20px); } 100% { transform: translateY(0); } }
+
+        /* หน้าต่าง Modal */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; z-index: 1000; }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal-box { background: white; padding: 20px; border-radius: 10px; width: 300px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .modal-box h4 { margin: 0 0 15px 0; text-align: center; }
+        .modal-buttons { display: flex; gap: 10px; margin-top: 15px; }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <h2>📊 Multi-Line Production Monitoring System</h2>
+
+        <!-- หน้าที่ 1: ตั้งค่ายอดงานเริ่มต้นแยกรายไลน์ (Setup Page) -->
+        <div id="page-setup" class="page active">
+            <div class="global-settings-bar">
+                <div>
+                    ⏱️ <b>เวลาลูปกลาง:</b> <span id="setup-time-preview" style="color:#e74c3c; font-weight:bold;">04:00</span>
+                </div>
+                <button id="btn-open-settings" class="btn-settings-toggle">⚙️ ตั้งเวลา & เกณฑ์เตือนสี</button>
+            </div>
+
+            <div class="setup-grid">
+                <!-- Line 1 Setup -->
+                <div class="setup-card">
+                    <h4>⚙️ Line 1</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l1-new" value="10" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l1-stock" value="12" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l1-active" value="6" min="0"></div>
+                    </div>
+                </div>
+                <!-- Line 2 Setup -->
+                <div class="setup-card">
+                    <h4>⚙️ Line 2</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l2-new" value="8" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l2-stock" value="15" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l2-active" value="5" min="0"></div>
+                    </div>
+                </div>
+                <!-- Line 3 Setup -->
+                <div class="setup-card">
+                    <h4>⚙️ Line 3</h4>
+                    <div class="setup-input-group">
+                        <div class="row"><label style="color:var(--blue)">งานใหม่ (ฟ้า):</label><input type="number" id="setup-l3-new" value="15" min="0"></div>
+                        <div class="row"><label style="color:var(--light-green)">สำรอง (เขียวอ่อน):</label><input type="number" id="setup-l3-stock" value="10" min="0"></div>
+                        <div class="row"><label style="color:var(--dark-green)">กำลังใช้ (เขียวเข้ม):</label><input type="number" id="setup-l3-active" value="7" min="0"></div>
+                    </div>
+                </div>
+            </div>
+            <button id="btn-submit-all" class="btn btn-submit">บันทึกข้อมูลและเปิดหน้า Dashboard หลัก ➡️</button>
+        </div>
+
+        <!-- หน้าที่ 2: หน้าแดชบอร์ดควบคุมหลัก 3 ไลน์ผลิต (Dashboard Page) -->
+        <div id="page-dashboard" class="page">
+            <!-- ส่วนควบคุมภาพรวม (Master Control) -->
+            <div class="master-controls">
+                <button id="btn-master-start" class="btn btn-start-all">▶️ เริ่มทำงานทุกไลน์</button>
+                <button id="btn-master-stop" class="btn btn-stop-all" disabled>⏸️ หยุดทุกไลน์</button>
+                <button id="btn-master-reset" class="btn btn-reset-all">🔄 Reset & ตั้งค่าใหม่</button>
+            </div>
+
+            <div class="lines-layout">
+                <!-- LINE 1 PANEL -->
+                <div id="card-l1" class="line-column">
+                    <div class="line-header"><h3>Line 1</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l1" class="btn btn-line-toggle run" disabled>หยุดไลน์ 1</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label style="font-size:12px; font-weight:bold;">เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l1-val" value="5" min="1">
+                            <button onclick="liveAddJob(1)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l1" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l1-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l1-new">0</span></span></div>
+                            <div id="bar-l1-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l1-stock">0</span></span></div>
+                            <div id="bar-l1-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l1-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LINE 2 PANEL -->
+                <div id="card-l2" class="line-column">
+                    <div class="line-header"><h3>Line 2</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l2" class="btn btn-line-toggle run" disabled>หยุดไลน์ 2</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label style="font-size:12px; font-weight:bold;">เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l2-val" value="5" min="1">
+                            <button onclick="liveAddJob(2)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l2" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l2-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l2-new">0</span></span></div>
+                            <div id="bar-l2-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l2-stock">0</span></span></div>
+                            <div id="bar-l2-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l2-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- LINE 3 PANEL -->
+                <div id="card-l3" class="line-column">
+                    <div class="line-header"><h3>Line 3</h3></div>
+                    <div class="line-btn-panel">
+                        <button id="btn-toggle-l3" class="btn btn-line-toggle run" disabled>หยุดไลน์ 3</button>
+                    </div>
+                    <div class="line-live-add">
+                        <label style="font-size:12px; font-weight:bold;">เติมงาน (ฟ้า):</label>
+                        <div>
+                            <input type="number" id="add-l3-val" value="5" min="1">
+                            <button onclick="liveAddJob(3)" class="btn btn-add-inline">บวก</button>
+                        </div>
+                    </div>
+                    <div class="line-timer-box"><div id="timer-l3" class="line-countdown">04:00</div></div>
+                    <div class="chart-wrapper">
+                        <div class="main-bar">
+                            <div id="bar-l3-new" class="bar-segment bar-blue"><span class="bar-label">ใหม่<br><span id="val-l3-new">0</span></span></div>
+                            <div id="bar-l3-stock" class="bar-segment bar-light-green"><span class="bar-label">สำรอง<br><span id="val-l3-stock">0</span></span></div>
+                            <div id="bar-l3-active" class="bar-segment status-normal"><span class="bar-label">กำลังใช้<br><span id="val-l3-active">0</span></span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- หน้าต่างป๊อปอัพตั้งค่า (Global Settings Modal) -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h4>⚙️ ตั้งค่าระบบส่วนกลาง</h4>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px;">⏱️ เวลาลูปจ่ายชิ้นงาน:</label>
+                <input type="number" id="modal-min" value="4" style="width:50px; text-align:center;"> นาที 
+                <input type="number" id="modal-sec" value="0" style="width:50px; text-align:center;"> วินาที
+            </div>
+            <div style="margin-bottom:12px;">
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px; color:#d6a300;">⚠️ เกณฑ์เตือนภัย (สีเหลือง):</label>
+                ต่ำกว่า <input type="number" id="modal-warn" value="5" style="width:65px; text-align:center;"> ชิ้น
+            </div>
+            <div>
+                <label style="font-size:12px; font-weight:bold; display:block; margin-bottom:4px; color:var(--danger-red);">🚨 เกณฑ์วิกฤต (สีแดง):</label>
+                ต่ำกว่าหรือเท่ากับ <input type="number" id="modal-danger" value="3" style="width:65px; text-align:center;"> ชิ้น
+            </div>
+            <div class="modal-buttons">
+                <button id="btn-modal-save" class="btn" style="background-color:var(--blue); flex:1;">บันทึก</button>
+                <button id="btn-modal-close" class="btn" style="background-color:#e74c3c; flex:1;">ยกเลิก</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // โครงสร้างข้อมูลรองรับ 3 ไลน์การผลิตแยกอิสระ
+        let lines = {
+            1: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false },
+            2: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false },
+            3: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false }
+        };
+
+        let configTotalSeconds = 240;
+        let configWarnThreshold = 5;
+        let configDangerThreshold = 3;
+        
+        let masterInterval = null; // ใช้ลูปเวลาหลักตัวเดียวในการคุมทั้ง 3 ไลน์เพื่อความแม่นยำ
+
+        // ฟังก์ชันจัดสีแถบกำลังใช้งานล่างสุดตามเกณฑ์ภัย
+        function applyActiveColor(lineId) {
+            const el = document.getElementById(`bar-l${lineId}-active`);
+            el.classList.remove('status-normal', 'status-warning', 'status-danger');
+            let val = lines[lineId].active;
+            
+            if (val <= configDangerThreshold) el.classList.add('status-danger');
+            else if (val < configWarnThreshold) el.classList.add('status-warning');
+            else el.classList.add('status-normal');
+        }
+
+        // ฟังก์ชันวาดกราฟแท่งสัดส่วนเฉพาะของแต่ละไลน์
+        function updateLineChart(lineId) {
+            const lData = lines[lineId];
+            const total = lData.active + lData.stock + lData.newJob;
+            
+            const elAct = document.getElementById(`bar-l${lineId}-active`);
+            const elStk = document.getElementById(`bar-l${lineId}-stock`);
+            const elNew = document.getElementById(`bar-l${lineId}-new`);
+            
+            if (total === 0) {
+                elAct.style.height = "0%"; elStk.style.height = "0%"; elNew.style.height = "0%";
+                document.getElementById(`val-l${lineId}-active`).textContent = 0;
+                document.getElementById(`val-l${lineId}-stock`).textContent = 0;
+                document.getElementById(`val-l${lineId}-new`).textContent = 0;
+                return;
+            }
+
+            elAct.style.height = `${(lData.active / total) * 100}%`;
+            elStk.style.height = `${(lData.stock / total) * 100}%`;
+            elNew.style.height = `${(lData.newJob / total) * 100}%`;
+
+            document.getElementById(`val-l${lineId}-active`).textContent = lData.active;
+            document.getElementById(`val-l${lineId}-stock`).textContent = lData.stock;
+            document.getElementById(`val-l${lineId}-new`).textContent = lData.newJob;
+            
+            applyActiveColor(lineId);
+        }
+
+        // ฟังก์ชันลูปหลัก ทำงานทุกๆ 1 วินาที เพื่อเช็คทุกไลน์พร้อมกัน
+        function runMasterTick() {
+            masterInterval = setInterval(() => {
+                let anyLineRunning = false;
+
+                for (let i = 1; i <= 3; i++) {
+                    if (lines[i].isRunning) {
+                        anyLineRunning = true;
+                        lines[i].countdown--;
+                        document.getElementById(`timer-l${i}`).textContent = formatDisplayTime(lines[i].countdown);
+
+                        // เมื่อไลน์นั้นนับเวลาถอยหลังครบรอบชิ้นงาน
+                        if (lines[i].countdown <= 0) {
+                            if (lines[i].active > 0) {
+                                lines[i].active--;
+                                updateLineChart(i);
+                            }
+
+                            if (lines[i].active === 0) {
+                                triggerLinePuzzleShift(i);
+                            } else {
+                                lines[i].countdown = configTotalSeconds;
+                            }
+                        }
+                    }
+                }
+
+                if (!anyLineRunning) {
+                    stopMasterTimer();
+                }
+            }, 1000);
+        }
+
+        // เอฟเฟกต์การเลื่อนแถว Puzzle แยกเฉพาะไลน์ที่งานหมด
+        function triggerLinePuzzleShift(lineId) {
+            const elAct = document.getElementById(`bar-l${lineId}-active`);
+            const elStk = document.getElementById(`bar-l${lineId}-stock`);
+            const elNew = document.getElementById(`bar-l${lineId}-new`);
+            
+            lines[lineId].isRunning = false; // หยุดเวลาระหว่างทำเอฟเฟกต์ชั่วครู่
+            elAct.classList.remove('blink-active');
+            elAct.classList.add('puzzle-disappear');
+
+            setTimeout(() => {
+                lines[lineId].active = lines[lineId].stock;
+                lines[lineId].stock = lines[lineId].newJob;
+                lines[lineId].newJob = 0;
+
+                elAct.classList.remove('puzzle-disappear');
+                elStk.classList.add('puzzle-fall');
+                elNew.classList.add('puzzle-fall');
+
+                updateLineChart(lineId);
+
+                setTimeout(() => {
+                    elStk.classList.remove('puzzle-fall');
+                    elNew.classList.remove('puzzle-fall');
+
+                    if (lines[lineId].active > 0 || lines[lineId].stock > 0) {
+                        lines[lineId].countdown = configTotalSeconds;
+                        // เช็คว่า Master Control สั่งงานอยู่หรือไม่ ถ้าใช่ให้เดินหน้าต่อ
+                        if (document.getElementById('btn-master-start').disabled) {
+                            lines[lineId].isRunning = true;
+                            elAct.classList.add('blink-active');
+                        }
+                    } else {
+                        document.getElementById(`timer-l${lineId}`).textContent = "หมด!!";
+                        document.getElementById(`btn-toggle-l${lineId}`).disabled = true;
+                    }
+                }, 400);
+            }, 400);
+        }
+
+        function stopMasterTimer() {
+            clearInterval(masterInterval);
+            masterInterval = null;
+        }
+
+        function formatDisplayTime(secs) {
+            let minutes = Math.floor(secs / 60);
+            let seconds = secs % 60;
+            return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+
+        // ฟังก์ชันเติมงานใหม่ระหว่างทำงาน (Real-time Live Add) แยกรายไลน์
+        function liveAddJob(lineId) {
+            const inputEl = document.getElementById(`add-l${lineId}-val`);
+            let addVal = parseInt(inputEl.value) || 0;
+            if (addVal <= 0) { alert("กรุณาใส่ยอดงานมากกว่า 0"); return; }
+            
+            lines[lineId].newJob += addVal;
+            updateLineChart(lineId);
+            
+            // ถ้าไลน์นั้นเคยจบงานไปจนเป็น 0 แล้ว แต่มีงานเติมเข้ามาใหม่ ให้ระบบกลับมาพร้อมทำงาน
+            if (lines[lineId].active === 0 && lines[lineId].stock === 0 && lines[lineId].newJob === addVal) {
+                triggerLinePuzzleShift(lineId);
+                document.getElementById(`btn-toggle-l${lineId}`).disabled = false;
+            }
+        }
+
+        // --- Event Listeners ควบคุมรายไลน์ (Individual Line Pause/Resume) ---
+        function setupLineToggleButton(i) {
+            const btn = document.getElementById(`btn-toggle-l${i}`);
+            btn.addEventListener('click', () => {
+                const card = document.getElementById(`card-l${i}`);
+                const barAct = document.getElementById(`bar-l${i}-active`);
+                
+                if (lines[i].isRunning) {
+                    // กดเพื่อสั่งหยุดเฉพาะไลน์นี้
+                    lines[i].isRunning = false;
+                    card.classList.add('paused');
+                    barAct.classList.remove('blink-active');
+                    btn.textContent = `เดินต่อไลน์ ${i}`;
+                    btn.className = "btn btn-line-toggle pause";
+                } else {
+                    // กดให้เดินหน้าต่อเฉพาะไลน์นี้
+                    if (lines[i].active === 0 && lines[i].stock === 0 && lines[i].newJob === 0) return;
+                    lines[i].isRunning = true;
+                    card.classList.remove('paused');
+                    barAct.classList.add('blink-active');
+                    btn.textContent = `หยุดไลน์ ${i}`;
+                    btn.className = "btn btn-line-toggle run";
+                    
+                    if (!masterInterval) runMasterTick();
+                }
+            });
+        }
+        for (let i = 1; i <= 3; i++) { setupLineToggleButton(i); }
+
+        // --- Event Listeners ปุ่มควบคุมภาพรวมหลัก (Master Controls) ---
+        document.getElementById('btn-master-start').addEventListener('click', () => {
+            let totalJobs = 0;
+            for (let i = 1; i <= 3; i++) {
+                totalJobs += (lines[i].active + lines[i].stock + lines[i].newJob);
+            }
+            if (totalJobs === 0) { alert("ไม่มีงานอยู่ในระบบเลยสักไลน์เดียว กรุณากด Reset เพื่อตั้งค่ายอดงานก่อนครับ"); return; }
+
+            document.getElementById('btn-master-start').disabled = true;
+            document.getElementById('btn-master-stop').disabled = false;
+
+            for (let i = 1; i <= 3; i++) {
+                if (lines[i].active > 0 || lines[i].stock > 0 || lines[i].newJob > 0) {
+                    const card = document.getElementById(`card-l${i}`);
+                    // เปิดสิทธิ์ให้ทำงานเฉพาะไลน์ที่ไม่ได้กด Pause รายบุคคลค้างไว้ก่อนหน้า
+                    if (!card.classList.contains('paused')) {
+                        lines[i].isRunning = true;
+                        document.getElementById(`bar-l${i}-active`).classList.add('blink-active');
+                        document.getElementById(`btn-toggle-l${i}`).disabled = false;
+                        document.getElementById(`btn-toggle-l${i}`).textContent = `หยุดไลน์ ${i}`;
+                        document.getElementById(`btn-toggle-l${i}`).className = "btn btn-line-toggle run";
+                    }
+                }
+            }
+            if (!masterInterval) runMasterTick();
+        });
+
+        document.getElementById('btn-master-stop').addEventListener('click', () => {
+            document.getElementById('btn-master-start').disabled = false;
+            document.getElementById('btn-master-stop').disabled = true;
+            
+            stopMasterTimer();
+            for (let i = 1; i <= 3; i++) {
+                lines[i].isRunning = false;
+                document.getElementById(`bar-l${i}-active`).classList.remove('blink-active');
+                document.getElementById(`btn-toggle-l${i}`).disabled = true;
+            }
+        });
+
+        document.getElementById('btn-master-reset').addEventListener('click', () => {
+            stopMasterTimer();
+            lines = {
+                1: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false },
+                2: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false },
+                3: { active: 0, stock: 0, newJob: 0, countdown: 0, isRunning: false }
+            };
+            
+            for (let i = 1; i <= 3; i++) {
+                updateLineChart(i);
+                const card = document.getElementById(`card-l${i}`);
+                card.classList.remove('paused');
+                document.getElementById(`btn-toggle-l${i}`).disabled = true;
+                document.getElementById(`timer-l${i}`).textContent = formatDisplayTime(configTotalSeconds);
+            }
+            
+            document.getElementById('btn-master-start').disabled = false;
+            document.getElementById('btn-master-stop').disabled = true;
+            
+            document.getElementById('page-dashboard').classList.remove('active');
+            document.getElementById('page-setup').classList.add('active');
+        });
+
+        // --- คุมการเปลี่ยนผ่านจากหน้าแรกสลับไปหน้า Dashboard ---
+        document.getElementById('btn-submit-all').addEventListener('click', () => {
+            for (let i = 1; i <= 3; i++) {
+                lines[i].newJob = parseInt(document.getElementById(`setup-l${i}-new`).value) || 0;
+                lines[i].stock = parseInt(document.getElementById(`setup-l${i}-stock`).value) || 0;
+                lines[i].active = parseInt(document.getElementById(`setup-l${i}-active`).value) || 0;
+                lines[i].countdown = configTotalSeconds;
+                
+                document.getElementById(`timer-l${i}`).textContent = formatDisplayTime(configTotalSeconds);
+                updateLineChart(i);
+            }
+            document.getElementById('page-setup').classList.remove('active');
+            document.getElementById('page-dashboard').classList.add('active');
+        });
+
+        // --- ควบคุมหน้าต่างตั้งค่าส่วนกลาง Modal ---
+        const modal = document.getElementById('settings-modal');
+        document.getElementById('btn-open-settings').addEventListener('click', () => {
+            document.getElementById('modal-min').value = Math.floor(configTotalSeconds / 60);
+            document.getElementById('modal-sec').value = configTotalSeconds % 60;
+            document.getElementById('modal-warn').value = configWarnThreshold;
+            document.getElementById('modal-danger').value = configDangerThreshold;
+            modal.classList.add('active');
+        });
+        document.getElementById('btn-modal-close').addEventListener('click', () => modal.classList.remove('active'));
+        document.getElementById('btn-modal-save').addEventListener('click', () => {
+            let m = parseInt(document.getElementById('modal-min').value) || 0;
+            let s = parseInt(document.getElementById('modal-sec').value) || 0;
+            if(m < 0) m = 0; if(s < 0) s = 0; if(s > 59) s = 59;
+            if(m === 0 && s === 0) s = 4;
+            configTotalSeconds = (m * 60) + s;
+
+            let w = parseInt(document.getElementById('modal-warn').value) || 5;
+            let d = parseInt(document.getElementById('modal-danger').value) || 3;
+            if(w < 1) w = 1; if(d < 1) d = 1;
+            if(d >= w) d = w - 1;
+
+            configWarnThreshold = w;
+            configDangerThreshold = d;
+
+            document.getElementById('setup-time-preview').textContent = formatDisplayTime(configTotalSeconds);
+            modal.classList.remove('active');
+        });
+    </script>
+</body>
+</html>
